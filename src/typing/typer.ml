@@ -1668,6 +1668,25 @@ and type_expr ?(mode=MGet) ctx (e,p) (with_type:WithType.t) =
 		mk (TNew ((match t with TInst (c,[]) -> c | _ -> die "" __LOC__),[],[str;opt])) t p
 	| EConst (String(s,SSingleQuotes)) when s <> "" ->
 		type_expr ctx (format_string ctx s p) with_type
+	| EConst (Int s as c) ->
+		let len         = String.length s in
+		let i64_postfix = String.contains_from s (len - 1) 'L' in
+
+		(match i64_postfix with
+		| true ->
+			let str  = String.sub s 0 (len - 1) in
+			let i64  = Int64.of_string str in
+			let high = Int64.to_int32 (Int64.shift_right i64 32) in
+			let low  = Int64.to_int32 i64 in
+
+			let ident = EConst (Ident "haxe"), p in
+			let field = EField ((EField (ident, "Int64"), p), "make"), p in
+
+			let arg_high = EConst (Int (Int32.to_string high)), p in
+			let arg_low  = EConst (Int (Int32.to_string low)), p in
+			let call     = ECall (field, [ arg_high; arg_low ]), p in
+			type_expr ctx call with_type
+		| false -> Texpr.type_constant ctx.com.basic c p)
 	| EConst c ->
 		Texpr.type_constant ctx.com.basic c p
 	| EBinop (op,e1,e2) ->
