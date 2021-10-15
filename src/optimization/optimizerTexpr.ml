@@ -91,15 +91,23 @@ let optimize_binop e op e1 e2 =
 		let fstr = Numeric.float_repres f in
 		if (match classify_float f with FP_nan | FP_infinite -> false | _ -> float_of_string fstr = f) then { e with eexpr = TConst (TFloat fstr) } else e
 	in
+	let make_const_zero t e =
+		match is_float t with
+		| true -> { e with eexpr = TConst (TFloat "0.0") }
+		| false -> { e with eexpr = TConst (TInt 0l) } in
 	(match e1.eexpr, e2.eexpr with
 	| TConst (TInt 0l) , _ when op = OpAdd && is_numeric e2.etype -> e2
 	| TConst (TInt 1l) , _ when op = OpMult -> e2
+	| TConst (TInt 0l) , _ when op = OpMult && is_numeric e2.etype -> make_const_zero e2.etype e
 	| TConst (TFloat v) , _ when op = OpAdd && float_of_string v = 0. && is_float e2.etype -> e2
 	| TConst (TFloat v) , _ when op = OpMult && float_of_string v = 1. && is_float e2.etype -> e2
+	| TConst (TFloat v) , _ when op = OpMult && float_of_string v = 0. && is_numeric e2.etype -> e1
 	| _ , TConst (TInt 0l) when (match op with OpAdd -> is_numeric e1.etype | OpSub | OpShr | OpShl -> true | _ -> false) -> e1 (* bits operations might cause overflow *)
 	| _ , TConst (TInt 1l) when op = OpMult -> e1
+	| _ , TConst (TInt 0l) when op = OpMult && is_numeric e1.etype -> make_const_zero e1.etype e
 	| _ , TConst (TFloat v) when (match op with OpAdd | OpSub -> float_of_string v = 0. && is_float e1.etype | _ -> false) -> e1 (* bits operations might cause overflow *)
 	| _ , TConst (TFloat v) when op = OpMult && float_of_string v = 1. && is_float e1.etype -> e1
+	| _ , TConst (TFloat v) when op = OpMult && float_of_string v = 0. && is_numeric e1.etype -> e2
 	| TConst TNull, TConst TNull ->
 		(match op with
 		| OpEq -> { e with eexpr = TConst (TBool true) }
